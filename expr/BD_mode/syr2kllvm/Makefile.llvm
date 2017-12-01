@@ -1,0 +1,86 @@
+all: sbsi
+
+DEBUG = -g 
+OPT = -O2
+SM =sm_35
+CP =compute_35
+
+## what is the difference between -lcudart and -lcudart_static
+SRC =syr2k.cu
+EXE =syr2k.exe
+PASS =/home/dshen/llvm/build/lib/LLVMHello.so
+ANSF =/home/dshen/llvm/llvm/lib/Transforms/Hello/compile/ansf.cu
+HOST_INS =/home/dshen/llvm/llvm/lib/Transforms/Hello/compile/print.cpp
+
+ll : device.clean.ll ansf.ll device.link.ll device.ll host.ll hosti.ll
+
+rsm: hosti.bc
+	llvm-as < hosti.ll > hosti.bc 
+	clang++ hosti.bc -c
+	clang++ hosti.o -o axpy -L/usr/local/cuda/lib64 -lcudart -ldl -lrt -pthread -L. -lprint
+
+%.ll:  %.bc
+	llvm-dis < $< > $@ 
+
+native_axpy:	$(SRC)
+	nvcc $(DEBUG)  $(SRC) -o exe -save-temps -L. -lprint
+
+clang:
+	clang++ $(DEBUG) $(OPT) $(SRC) -o $(EXE) --cuda-gpu-arch=$(SM) -L/usr/local/cuda/lib64 -lcudart -ldl -lrt -pthread -save-temps
+
+bc:
+	clang++ $(DEBUG) $(OPT) $(SRC) -emit-llvm -c -save-temps
+
+device.bc instru: device.link.bc $(PASS) 
+	opt -load $(PASS) -instru-kernel < device.link.bc > device.bc
+
+clean: 
+	rm -f *.o *.bc *.ll *.s  native_ax* *.cubin *.ptx *.fatbin a.out *.cui *cudafe* *cpp*.i* *fatbin.c *module_id *.reg.c exe $(EXE)
+
+print.so : $(HOST_INS)
+	g++ -std=c++11 -c $(DEBUG) $(OPT) -Wall -fPIC $(HOST_INS) -o print.o
+	g++ -std=c++11 print.o -shared -o libprint.so
+
+wayin:
+	cp device.clean.bc device.bc
+
+sbs: wayin device.fatbin host.bc
+	clang++ host.bc -c
+	clang++ $(DEBUG) host.o -o $(EXE) -L/usr/local/cuda/lib64 -lcudart -ldl -lrt -pthread 
+
+sbsi: hosti.o print.so
+	clang++ $(DEBUG) hosti.o -o $(EXE) -L/usr/local/cuda/lib64 -lcudart -ldl -lrt -pthread -L. -lprint
+	
+hosti.o: hosti.bc
+	clang++ hosti.bc -c
+
+hosti.bc: host.bc  $(PASS)  
+	opt -load $(PASS) -instru-global-var < host.bc > hosttmp.bc	
+	opt -load $(PASS) -instru-host < hosttmp.bc > hosti.bc	
+
+host.o : host.bc
+	clang++ host.bc -c
+
+host.bc: device.fatbin host.cui
+	clang -cc1 -triple x86_64-unknown-linux-gnu -aux-triple nvptx64-nvidia-cuda -emit-llvm-bc -emit-llvm-uselists -disable-free -main-file-name axpy.cu -mrelocation-model static -mthread-model posix -mdisable-fp-elim -fmath-errno -masm-verbose -mconstructor-aliases -munwind-tables -fuse-init-array -target-cpu x86-64 -v -dwarf-column-info -debug-info-kind=limited -dwarf-version=4 -debugger-tuning=gdb -resource-dir /home/shen956/llvm/build/bin/../lib/clang/4.0.0 $(OPT) -fdeprecated-macro -fdebug-compilation-dir /home/shen956/llvm/llvm/lib/Transforms/Hello/compile -ferror-limit 19 -fmessage-length 0 -pthread -fobjc-runtime=gcc -fcxx-exceptions -fexceptions -fdiagnostics-show-option -disable-llvm-passes -o host.bc -x cuda-cpp-output host.cui -fcuda-include-gpubinary device.fatbin
+#	clang++ -cc1 $(OPT) -triple x86_64-unknown-linux-gnu -aux-triple nvptx64-nvidia-cuda -emit-llvm-bc -emit-llvm-uselists -disable-free -main-file-name $(SRC) -o host.bc -x cuda-cpp-output host.cui -fcuda-include-gpubinary device.fatbin	
+
+device.fatbin: device.bc host.cui
+	llc device.bc -filetype=asm -o device.ptx
+	ptxas --gpu-name $(SM) device.ptx -o device.o
+	fatbinary --cuda -64 --create device.fatbin --image=profile=$(SM),file=device.o --image=profile=$(CP),file=device.ptx  
+
+host.cui: $(SRC)
+	clang++ $(DEBUG) $(OPT) -E --cuda-host-only $(SRC) -o host.cui
+
+device.clean.bc:  $(SRC)
+	clang++ $(DEBUG) $(OPT) -c --cuda-device-only -emit-llvm $(SRC) -o device.clean.bc
+
+ansf.bc :  $(ANSF)
+	clang++ $(DEBUG) $(OPT) -c --cuda-device-only -emit-llvm $(ANSF) -o ansf.bc
+
+device.link.bc: device.clean.bc ansf.bc 
+	llvm-link device.clean.bc ansf.bc -o=device.link.bc
+
+
+

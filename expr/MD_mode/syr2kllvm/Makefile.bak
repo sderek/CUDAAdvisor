@@ -1,0 +1,9 @@
+EXECUTABLE := syr2k.exe
+CUFILES := syr2k.cu
+
+include ../common.mk
+
+
+all :
+	nvcc -O3 $(CUFILES) -o syr2k.cha --gpu-architecture=sm_35 -Xptxas -dlcm=ca
+	nvcc -O3 $(CUFILES) -o syr2k.bpa --gpu-architecture=sm_35
