@@ -28,6 +28,9 @@ Go to the top level of your LLVM build directory and rebuild, you should get a n
 
 ## Authors
 Du Shen, College of William and Mary
+
 Leon Shuaiwen Song, Pacific Northwest National Laboratory
+
 Ang Li, Pacific Northwest National Laboratory
+
 Xu Liu, College of William and Mary
