@@ -12,10 +12,13 @@ CUDAAdvisor is a profiling tool for GPU.
 
 ## Installation
 Your system should have LLVM installed.
+
 `$ cd [llvm source tree]/lib/Transforms/`
+
 `$ git clone https://github.com/sderek/CUDAAdvisor.git`
 
 And copy the fowllowing lines into `lib/Transforms/CMakeLists.txt`
+
 `add_subdirectory(CUDAAdvisor)`
 
 Go to the top level of your LLVM build directory and rebuild, you should get a new file `lib/LLVMCudaAdvisor.so`. You are able use the **opt** tool to access it. There is an exmple in `src/` subdirectory and a template is provided.
